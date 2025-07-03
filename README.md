@@ -1,4 +1,4 @@
-# Spring Backend
+# Spring Backend For Autonomous Search And Rescue Droid
 
 This repository contains the backend service for the Autonomous Search and Rescue Droid project. Built with Spring Boot, it provides REST APIs and backend logic to support the operations of the search and rescue system.
 

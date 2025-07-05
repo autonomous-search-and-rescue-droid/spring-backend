@@ -63,7 +63,7 @@ This section provides details on the available API endpoints for interacting wit
 
 ### Base URL
 
-All API endpoints are prefixed with: `http://localhost:8080` (or your deployed API base URL).
+All API endpoints are prefixed with: `http://localhost:8080` (currently running in localhost).
 
 ---
 

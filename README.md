@@ -82,7 +82,7 @@ Authenticate a user and return a JWT token.
 }
 ```
 
-##### Response
+##### Response (success)
 ```json
 {
   "token": "jwt-token",
@@ -92,6 +92,14 @@ Authenticate a user and return a JWT token.
   "roles": ["ROLE_USER"]
 }
 ```
+
+##### Response (If email not verified)
+```json
+{
+  "message": "Email not verified. Please verify your email to sign in."
+}
+```
+
 
 #### `POST /api/auth/signup`
 
@@ -110,7 +118,32 @@ Register a new user
 ##### Response
 ```json
 {
-  "message": "User registered successfully!"
+  "message": "User registered successfully! Please verify your email."
+}
+```
+
+#### `POST /api/auth/verify-email`
+
+Verify email using otp
+
+##### Verify email
+
+```url
+/api/auth/verify-email?email=newuser@example.com&otp=123456
+```
+
+##### Response (success)
+
+```json
+{
+  "message": "Email verified successfully!"
+}
+```
+
+##### Response (Invalid OTP)
+```json
+{
+  "message": "Invalid or expired OTP"
 }
 ```
 

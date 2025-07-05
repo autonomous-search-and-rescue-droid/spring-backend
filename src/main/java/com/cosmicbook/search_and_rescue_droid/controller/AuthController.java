@@ -4,11 +4,14 @@ import com.cosmicbook.search_and_rescue_droid.dto.JwtResponse;
 import com.cosmicbook.search_and_rescue_droid.dto.SignInRequest;
 import com.cosmicbook.search_and_rescue_droid.dto.SignUpRequest;
 import com.cosmicbook.search_and_rescue_droid.model.ERole;
+import com.cosmicbook.search_and_rescue_droid.model.OTPVerification;
 import com.cosmicbook.search_and_rescue_droid.model.Role;
 import com.cosmicbook.search_and_rescue_droid.model.User;
+import com.cosmicbook.search_and_rescue_droid.repository.OtpVerificationRepository;
 import com.cosmicbook.search_and_rescue_droid.repository.RoleRepository;
 import com.cosmicbook.search_and_rescue_droid.repository.UserRepository;
 import com.cosmicbook.search_and_rescue_droid.security.JwtUtils;
+import com.cosmicbook.search_and_rescue_droid.service.EmailService;
 import com.cosmicbook.search_and_rescue_droid.service.UserDetailsImpl;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +22,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -42,6 +46,13 @@ public class AuthController {
     @Autowired
     JwtUtils jwtUtils;
 
+    @Autowired
+    private OtpVerificationRepository otpVerificationRepository;
+
+    @Autowired
+    EmailService emailService;
+
+
     @PostMapping("/signin")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody SignInRequest loginRequest) {
 
@@ -49,6 +60,13 @@ public class AuthController {
                 new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
 
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+
+        //check if mail is verified
+        Optional<User> user = userRepository.findByUsername(userDetails.getUsername());
+        if (user.isPresent() && !user.get().isEmailVerified()) {
+            return ResponseEntity.badRequest().body("Error: Email is not verified. Please verify your email before logging in.");
+        }
+
         String jwt = jwtUtils.generateJwtToken(userDetails.getUsername());
 
         List<String> roles = userDetails.getAuthorities().stream()
@@ -100,6 +118,58 @@ public class AuthController {
         user.setRole(roles);
         userRepository.save(user);
 
-        return ResponseEntity.ok("User registered successfully!");
+        try{
+            //generate otp
+            String otp = String.format("%06d", new Random().nextInt(999999));
+
+            // save otp to the database
+            OTPVerification otpEntry = new OTPVerification();
+            otpEntry.setEmail(user.getEmail());
+            otpEntry.setOtp(otp);
+            otpEntry.setExpiryTime(LocalDateTime.now().plusMinutes(10));
+            otpVerificationRepository.save(otpEntry);
+
+            // Send Email
+            emailService.sendVerificationEmail(user.getEmail(), user.getUsername(), otp);
+
+            return ResponseEntity.ok("User registered successfully. Please verify email. An OTP has been sent to your email address, which is valid for 10 minutes.");
+
+        }catch (Exception e){
+            return ResponseEntity.status(500).body("Error: Failed to send verification email. Please try again later.");
+        }
+
     }
+
+    //verify email
+    @PostMapping("/verify-email")
+    public ResponseEntity<?> verifyEmail(@RequestParam String email, @RequestParam String otp){
+        Optional<OTPVerification> record = otpVerificationRepository.findByEmail(email);
+
+        try{
+            if (record.isEmpty() || !record.get().getOtp().equals(otp)) {
+                return ResponseEntity.badRequest().body("Invalid OTP.");
+            }
+
+            if (record.get().getExpiryTime().isBefore(LocalDateTime.now())) {
+                return ResponseEntity.badRequest().body("OTP expired.");
+            }
+
+            // update user
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("Error: User not found."));
+            user.setEmailVerified(true);
+            user.setEmailVerifiedAt(LocalDateTime.now());
+            userRepository.save(user);
+
+            // delete otp record
+            otpVerificationRepository.delete(record.get());
+
+            // Return success response
+            return ResponseEntity.ok("Email verified successfully.");
+        }catch (Exception e){
+            return ResponseEntity.status(500).body("Error: Failed to verify email. Please try again later.");
+        }
+
+    }
+
 }

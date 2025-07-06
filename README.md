@@ -60,6 +60,7 @@ docker run -p 8080:8080 spring-backend
 ## API Documentation
 
 This section provides details on the available API endpoints for interacting with the application.
+More detailed documentation available at : `https://asar-spring-api-docs.netlify.app`
 
 ### Base URL
 

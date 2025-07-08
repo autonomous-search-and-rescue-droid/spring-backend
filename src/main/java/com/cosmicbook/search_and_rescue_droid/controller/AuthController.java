@@ -229,7 +229,7 @@ public class AuthController {
 
     }
 
-    @PostMapping("reset-password")
+    @PostMapping("/reset-password")
     public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest resetPasswordRequest){
         Optional<OTPVerification> otpVerification = otpVerificationRepository.findByEmail(resetPasswordRequest.getEmail());
 

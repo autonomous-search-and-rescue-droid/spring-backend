@@ -37,6 +37,7 @@ public class WebSecurityConfig {
                         .requestMatchers("/api/test/user").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/test/admin").hasRole("ADMIN")
                         .requestMatchers("/api/test/common").hasAnyRole("COMMON", "USER", "ADMIN")
+                        .requestMatchers("/api/missions/**").hasAnyRole("ADMIN","USER")
                         .anyRequest().authenticated()
                 );
 

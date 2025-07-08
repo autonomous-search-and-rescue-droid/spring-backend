@@ -1,6 +1,7 @@
 package com.cosmicbook.search_and_rescue_droid.controller;
 
 import com.cosmicbook.search_and_rescue_droid.dto.JwtResponse;
+import com.cosmicbook.search_and_rescue_droid.dto.ResetPasswordRequest;
 import com.cosmicbook.search_and_rescue_droid.dto.SignInRequest;
 import com.cosmicbook.search_and_rescue_droid.dto.SignUpRequest;
 import com.cosmicbook.search_and_rescue_droid.model.ERole;
@@ -170,6 +171,90 @@ public class AuthController {
             return ResponseEntity.status(500).body("Error: Failed to verify email. Please try again later.");
         }
 
+    }
+
+    @PostMapping("/resend-otp")
+    public ResponseEntity<?> resendOtp(@RequestParam String email) {
+        Optional<User> user = userRepository.findByEmail(email);
+        if (user.isEmpty()) {
+            return ResponseEntity.badRequest().body("Error: User not found.");
+        }
+
+        try {
+            // Generate new OTP
+            String otp = String.format("%06d", new Random().nextInt(999999));
+
+            // Save OTP to the database
+            OTPVerification otpEntry = new OTPVerification();
+            otpEntry.setEmail(email);
+            otpEntry.setOtp(otp);
+            otpEntry.setExpiryTime(LocalDateTime.now().plusMinutes(10));
+            otpVerificationRepository.save(otpEntry);
+
+            // Send Email
+            emailService.sendVerificationEmail(email, user.get().getUsername(), otp);
+
+            return ResponseEntity.ok("OTP has been resent to your email address.");
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error: Failed to resend OTP. Please try again later.");
+        }
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestParam String email){
+        Optional<User> user = userRepository.findByEmail(email);
+
+        if(user.isEmpty()){
+            return ResponseEntity.badRequest().body("Error: User not found.");
+        }
+        try {
+            // generate new OTP
+            String otp = String.format("%06d", new Random().nextInt(999999));
+
+            // save otp to the database
+            OTPVerification otpEntry= new OTPVerification();
+            otpEntry.setEmail(email);
+            otpEntry.setOtp(otp);
+            otpEntry.setExpiryTime(LocalDateTime.now().plusMinutes(10));
+
+            otpVerificationRepository.save(otpEntry);
+            // Send Email
+            emailService.sendForgotPasswordEmail(email, user.get().getUsername(), otp);
+
+            return ResponseEntity.ok("An OTP has been sent to your email address for password reset, which is valid for 10 minutes.");
+        }catch (Exception e) {
+            return ResponseEntity.status(500).body("Error: Failed to send forgot password email. Please try again later.");
+        }
+
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest resetPasswordRequest){
+        Optional<OTPVerification> otpVerification = otpVerificationRepository.findByEmail(resetPasswordRequest.getEmail());
+
+        if(otpVerification.isEmpty() || !otpVerification.get().getOtp().equals(resetPasswordRequest.getOtpCode())){
+            return ResponseEntity.badRequest().body("Invalid OTP.");
+        }
+        if(otpVerification.get().getExpiryTime().isBefore(LocalDateTime.now())){
+            return ResponseEntity.badRequest().body("OTP expired.");
+        }
+
+        try{
+            Optional<User> user = userRepository.findByEmail(resetPasswordRequest.getEmail());
+            if(user.isEmpty()){
+                return ResponseEntity.badRequest().body("Error: User not found.");
+            }
+            // Update user password
+            user.get().setPassword(encoder.encode(resetPasswordRequest.getNewPassword()));
+            userRepository.save(user.get());
+            // Delete OTP record
+            otpVerificationRepository.delete(otpVerification.get());
+
+            return ResponseEntity.ok("Password reset successfully.");
+        }catch (Exception e){
+            return ResponseEntity.status(500).body("Error: Failed to reset password. Please try again later.");
+        }
     }
 
 }

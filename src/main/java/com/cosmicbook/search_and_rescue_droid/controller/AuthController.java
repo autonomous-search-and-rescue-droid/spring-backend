@@ -4,18 +4,17 @@ import com.cosmicbook.search_and_rescue_droid.dto.JwtResponse;
 import com.cosmicbook.search_and_rescue_droid.dto.ResetPasswordRequest;
 import com.cosmicbook.search_and_rescue_droid.dto.SignInRequest;
 import com.cosmicbook.search_and_rescue_droid.dto.SignUpRequest;
-import com.cosmicbook.search_and_rescue_droid.model.ERole;
-import com.cosmicbook.search_and_rescue_droid.model.OTPVerification;
-import com.cosmicbook.search_and_rescue_droid.model.Role;
-import com.cosmicbook.search_and_rescue_droid.model.User;
+import com.cosmicbook.search_and_rescue_droid.model.*;
 import com.cosmicbook.search_and_rescue_droid.repository.OtpVerificationRepository;
 import com.cosmicbook.search_and_rescue_droid.repository.RoleRepository;
 import com.cosmicbook.search_and_rescue_droid.repository.UserRepository;
 import com.cosmicbook.search_and_rescue_droid.security.JwtUtils;
 import com.cosmicbook.search_and_rescue_droid.service.EmailService;
+import com.cosmicbook.search_and_rescue_droid.service.RefreshTokenService;
 import com.cosmicbook.search_and_rescue_droid.service.UserDetailsImpl;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -53,6 +52,9 @@ public class AuthController {
     @Autowired
     EmailService emailService;
 
+    @Autowired
+    private RefreshTokenService refreshTokenService;
+
 
     @PostMapping("/signin")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody SignInRequest loginRequest) {
@@ -62,24 +64,49 @@ public class AuthController {
 
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
 
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDetails.getId());
+
         //check if mail is verified
         Optional<User> user = userRepository.findByUsername(userDetails.getUsername());
         if (user.isPresent() && !user.get().isEmailVerified()) {
             return ResponseEntity.badRequest().body("Error: Email is not verified. Please verify your email before logging in.");
         }
 
-        String jwt = jwtUtils.generateJwtToken(userDetails.getUsername());
+        User user_details = userRepository.findByUsername(userDetails.getUsername()).orElseThrow();
+        String jwt = jwtUtils.generateJwtToken(user_details);
+
 
         List<String> roles = userDetails.getAuthorities().stream()
                 .map(item -> item.getAuthority())
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(new JwtResponse(jwt,
+                refreshToken.getToken(),
                 userDetails.getId(),
                 userDetails.getUsername(),
                 userDetails.getEmail(),
-                roles));
+                roles
+        ));
     }
+
+    @PostMapping("/refresh-token")
+    public ResponseEntity<?> refreshToken(@RequestBody Map<String, String> request) {
+        String requestToken = request.get("refreshToken");
+
+        return refreshTokenService.findByToken(requestToken)
+                .map(token -> {
+                    if (refreshTokenService.isExpired(token)) {
+                        refreshTokenService.deleteByUserId(token.getUserId());
+                        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Refresh token expired. Please sign in again.");
+                    }
+                    User user = userRepository.findById(token.getUserId()).orElseThrow();
+                    String newJwt = jwtUtils.generateJwtToken(user);
+
+                    return ResponseEntity.ok(Map.of("accessToken", newJwt, "refreshToken", token.getToken()));
+                })
+                .orElse(ResponseEntity.status(HttpStatus.FORBIDDEN).body("Invalid refresh token"));
+    }
+
 
     @PostMapping("/signup")
     public ResponseEntity<?> registerUser(@Valid @RequestBody SignUpRequest signUpRequest) {

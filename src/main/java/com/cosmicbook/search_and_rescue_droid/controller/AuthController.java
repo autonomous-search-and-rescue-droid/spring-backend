@@ -55,7 +55,6 @@ public class AuthController {
     @Autowired
     private RefreshTokenService refreshTokenService;
 
-
     @PostMapping("/signin")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody SignInRequest loginRequest) {
 
@@ -66,15 +65,15 @@ public class AuthController {
 
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDetails.getId());
 
-        //check if mail is verified
+        // check if mail is verified
         Optional<User> user = userRepository.findByUsername(userDetails.getUsername());
         if (user.isPresent() && !user.get().isEmailVerified()) {
-            return ResponseEntity.badRequest().body("Error: Email is not verified. Please verify your email before logging in.");
+            return ResponseEntity.badRequest()
+                    .body("Error: Email is not verified. Please verify your email before logging in.");
         }
 
         User user_details = userRepository.findByUsername(userDetails.getUsername()).orElseThrow();
         String jwt = jwtUtils.generateJwtToken(user_details);
-
 
         List<String> roles = userDetails.getAuthorities().stream()
                 .map(item -> item.getAuthority())
@@ -85,8 +84,7 @@ public class AuthController {
                 userDetails.getId(),
                 userDetails.getUsername(),
                 userDetails.getEmail(),
-                roles
-        ));
+                roles));
     }
 
     @PostMapping("/refresh-token")
@@ -97,7 +95,8 @@ public class AuthController {
                 .map(token -> {
                     if (refreshTokenService.isExpired(token)) {
                         refreshTokenService.deleteByUserId(token.getUserId());
-                        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Refresh token expired. Please sign in again.");
+                        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                                .body("Refresh token expired. Please sign in again.");
                     }
                     User user = userRepository.findById(token.getUserId()).orElseThrow();
                     String newJwt = jwtUtils.generateJwtToken(user);
@@ -106,7 +105,6 @@ public class AuthController {
                 })
                 .orElse(ResponseEntity.status(HttpStatus.FORBIDDEN).body("Invalid refresh token"));
     }
-
 
     @PostMapping("/signup")
     public ResponseEntity<?> registerUser(@Valid @RequestBody SignUpRequest signUpRequest) {
@@ -146,11 +144,12 @@ public class AuthController {
         user.setRole(roles);
         userRepository.save(user);
 
-        try{
-            //generate otp
+        try {
+            // generate otp
             String otp = String.format("%06d", new Random().nextInt(999999));
 
             // save otp to the database
+            otpVerificationRepository.deleteByEmail(user.getEmail());
             OTPVerification otpEntry = new OTPVerification();
             otpEntry.setEmail(user.getEmail());
             otpEntry.setOtp(otp);
@@ -160,20 +159,21 @@ public class AuthController {
             // Send Email
             emailService.sendVerificationEmail(user.getEmail(), user.getUsername(), otp);
 
-            return ResponseEntity.ok("User registered successfully. Please verify email. An OTP has been sent to your email address, which is valid for 10 minutes.");
+            return ResponseEntity.ok(
+                    "User registered successfully. Please verify email. An OTP has been sent to your email address, which is valid for 10 minutes.");
 
-        }catch (Exception e){
+        } catch (Exception e) {
             return ResponseEntity.status(500).body("Error: Failed to send verification email. Please try again later.");
         }
 
     }
 
-    //verify email
+    // verify email
     @PostMapping("/verify-email")
-    public ResponseEntity<?> verifyEmail(@RequestParam String email, @RequestParam String otp){
+    public ResponseEntity<?> verifyEmail(@RequestParam String email, @RequestParam String otp) {
         Optional<OTPVerification> record = otpVerificationRepository.findByEmail(email);
 
-        try{
+        try {
             if (record.isEmpty() || !record.get().getOtp().equals(otp)) {
                 return ResponseEntity.badRequest().body("Invalid OTP.");
             }
@@ -194,7 +194,7 @@ public class AuthController {
 
             // Return success response
             return ResponseEntity.ok("Email verified successfully.");
-        }catch (Exception e){
+        } catch (Exception e) {
             return ResponseEntity.status(500).body("Error: Failed to verify email. Please try again later.");
         }
 
@@ -212,6 +212,7 @@ public class AuthController {
             String otp = String.format("%06d", new Random().nextInt(999999));
 
             // Save OTP to the database
+            otpVerificationRepository.deleteByEmail(email);
             OTPVerification otpEntry = new OTPVerification();
             otpEntry.setEmail(email);
             otpEntry.setOtp(otp);
@@ -229,10 +230,10 @@ public class AuthController {
     }
 
     @PostMapping("/forgot-password")
-    public ResponseEntity<?> forgotPassword(@RequestParam String email){
+    public ResponseEntity<?> forgotPassword(@RequestParam String email) {
         Optional<User> user = userRepository.findByEmail(email);
 
-        if(user.isEmpty()){
+        if (user.isEmpty()) {
             return ResponseEntity.badRequest().body("Error: User not found.");
         }
         try {
@@ -240,7 +241,8 @@ public class AuthController {
             String otp = String.format("%06d", new Random().nextInt(999999));
 
             // save otp to the database
-            OTPVerification otpEntry= new OTPVerification();
+            otpVerificationRepository.deleteByEmail(email);
+            OTPVerification otpEntry = new OTPVerification();
             otpEntry.setEmail(email);
             otpEntry.setOtp(otp);
             otpEntry.setExpiryTime(LocalDateTime.now().plusMinutes(10));
@@ -249,27 +251,30 @@ public class AuthController {
             // Send Email
             emailService.sendForgotPasswordEmail(email, user.get().getUsername(), otp);
 
-            return ResponseEntity.ok("An OTP has been sent to your email address for password reset, which is valid for 10 minutes.");
-        }catch (Exception e) {
-            return ResponseEntity.status(500).body("Error: Failed to send forgot password email. Please try again later.");
+            return ResponseEntity.ok(
+                    "An OTP has been sent to your email address for password reset, which is valid for 10 minutes.");
+        } catch (Exception e) {
+            return ResponseEntity.status(500)
+                    .body("Error: Failed to send forgot password email. Please try again later.");
         }
 
     }
 
     @PostMapping("/reset-password")
-    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest resetPasswordRequest){
-        Optional<OTPVerification> otpVerification = otpVerificationRepository.findByEmail(resetPasswordRequest.getEmail());
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest resetPasswordRequest) {
+        Optional<OTPVerification> otpVerification = otpVerificationRepository
+                .findByEmail(resetPasswordRequest.getEmail());
 
-        if(otpVerification.isEmpty() || !otpVerification.get().getOtp().equals(resetPasswordRequest.getOtpCode())){
+        if (otpVerification.isEmpty() || !otpVerification.get().getOtp().equals(resetPasswordRequest.getOtpCode())) {
             return ResponseEntity.badRequest().body("Invalid OTP.");
         }
-        if(otpVerification.get().getExpiryTime().isBefore(LocalDateTime.now())){
+        if (otpVerification.get().getExpiryTime().isBefore(LocalDateTime.now())) {
             return ResponseEntity.badRequest().body("OTP expired.");
         }
 
-        try{
+        try {
             Optional<User> user = userRepository.findByEmail(resetPasswordRequest.getEmail());
-            if(user.isEmpty()){
+            if (user.isEmpty()) {
                 return ResponseEntity.badRequest().body("Error: User not found.");
             }
             // Update user password
@@ -279,7 +284,7 @@ public class AuthController {
             otpVerificationRepository.delete(otpVerification.get());
 
             return ResponseEntity.ok("Password reset successfully.");
-        }catch (Exception e){
+        } catch (Exception e) {
             return ResponseEntity.status(500).body("Error: Failed to reset password. Please try again later.");
         }
     }

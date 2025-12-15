@@ -1,7 +1,5 @@
 package com.cosmicbook.search_and_rescue_droid.dto;
 
-import com.cosmicbook.search_and_rescue_droid.model.Role;
-
 import java.util.Set;
 
 public class SignUpRequest {

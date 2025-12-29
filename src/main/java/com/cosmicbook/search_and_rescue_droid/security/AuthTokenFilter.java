@@ -1,6 +1,5 @@
 package com.cosmicbook.search_and_rescue_droid.security;
 
-import com.cosmicbook.search_and_rescue_droid.model.User;
 import com.cosmicbook.search_and_rescue_droid.repository.UserRepository;
 import com.cosmicbook.search_and_rescue_droid.service.UserDetailsImpl;
 import jakarta.servlet.FilterChain;

@@ -17,7 +17,7 @@ public class MissionController {
     @Autowired
     private MissionService missionService;
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER', 'COMMON')")
     @GetMapping
     public ResponseEntity<List<MissionDTO>> getAllMissions() {
         try {
@@ -41,13 +41,13 @@ public class MissionController {
 
     @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
     @PutMapping("/update")
-    public ResponseEntity<?> updateMission(@Valid @RequestBody MissionDTO missionDTO){
+    public ResponseEntity<?> updateMission(@Valid @RequestBody MissionDTO missionDTO) {
         try {
 
             missionService.addMissionFromDTO(missionDTO);
             return ResponseEntity.ok("Mission updated successfully.");
 
-        }catch (Exception e) {
+        } catch (Exception e) {
             return ResponseEntity.badRequest().body("Mission details are incomplete or invalid.");
         }
     }

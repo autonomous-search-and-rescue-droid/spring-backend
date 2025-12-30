@@ -5,6 +5,8 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 
 import java.util.Optional;
 
-public interface OtpVerificationRepository extends MongoRepository<OTPVerification,String> {
+public interface OtpVerificationRepository extends MongoRepository<OTPVerification, String> {
     Optional<OTPVerification> findByEmail(String email);
+
+    void deleteByEmail(String email);
 }

@@ -21,9 +21,9 @@ This repository contains the backend service for the Autonomous Search and Rescu
 ## Getting Started
 
 ### Prerequisites
-- Java 17 or higher  
+- Java 21  
 - Maven 3.6+  
-- (Optional) Docker  
+- Docker with Compose support  
 
 ### Setup
 
@@ -33,29 +33,32 @@ git clone https://github.com/autonomous-search-and-rescue-droid/spring-backend.g
 cd spring-backend  
 ```
 
-Build the project:
+Create a local env file:
 ```bash
-mvn clean install  
+cp .env.example .env
 ```
 
-Run the application:
+Start the backend manually on Ubuntu:
 ```bash
-mvn spring-boot:run  
+docker-compose up -d mongodb
+env SPRING_DOCKER_COMPOSE_ENABLED=false SPRING_DATA_MONGODB_URI='mongodb://root:secret@localhost:27017/search_droid_db?authSource=admin' ./mvnw -Dmaven.test.skip=true -Djava.version=17 -Dmaven.compiler.release=17 -Dmaven.compiler.fork=true -Dmaven.compiler.executable=/usr/bin/javac spring-boot:run
+```
+
+Or use the Makefile shortcut:
+```bash
+make backend
 ```
 
 Access the API at: <http://localhost:8080>
 
-### Running With Docker
+The application loads `.env` automatically on startup. For Docker MongoDB, the default `.env.example` URI points to the Compose container with authentication enabled.
 
-Build the Docker image:
-```bash
-docker build -t spring-backend .  
-```
+### MongoDB Notes
 
-Run the container:
-```bash
-docker run -p 8080:8080 spring-backend  
-```
+- The backend uses `SPRING_DATA_MONGODB_URI` when present.
+- The included `compose.yaml` starts MongoDB on `localhost:27017`.
+- `make backend` first runs `docker-compose up -d mongodb`, then starts Spring Boot with the Ubuntu-compatible compiler settings that worked in this environment.
+- Roles are seeded automatically on startup for a fresh database, so signup works without manual inserts.
 
 ## API Documentation
 
